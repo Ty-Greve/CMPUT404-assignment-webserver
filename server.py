@@ -36,48 +36,129 @@ class MyWebServer(socketserver.BaseRequestHandler):
         decoded = self.data.decode('utf-8')
         arrivalHeaders = decoded.split("\n")
         intermediary = arrivalHeaders[0].strip().split()
+        if len(intermediary) < 2:
+            return
+        print(arrivalHeaders)
+        print(intermediary)
         methodRequested = intermediary[0]
         path = intermediary[1]
         # print(methodRequested)
         # print(path)
 
         if not methodRequested == "GET":
-            self.request.sendall(bytearray("HTTP/1.1 405 Method not allowed\r\n\r\n",'utf-8'))
+            self.request.sendall(bytearray("HTTP/1.1 405 Method not allowed\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n" + """
+                                           <!DOCTYPE html>
+                                                <html>
+                                                <head>
+                                                    <title>405 Method not allowed</title>
+                                                        <meta http-equiv="Content-Type"
+                                                        content="text/html;charset=utf-8"/>
+                                                </head>
 
-        if not path.endswith("/"):
+                                                <body>
+                                                    <div>
+                                                        <h1>405 Method not allowed</h1>
+                                                    </div>
+                                                </body>
+                                                </html> """
+                                           ,'utf-8'))
+            return
+
+        if not (path.endswith(".css") or path.endswith(".html")) and (not path.endswith("/")):
+            print(path)
             path += "/"
-        
-        # Set readPath to the current ./www plus the requested path
-        readPath = "./www" + path
+            response = "HTTP/1.1 301 Moved Permanently\r\nLocation: " + path + "\r\n\r\n"
+            self.request.sendall(bytearray(response,'utf-8'))
+            print(path)
+        elif path.endswith(".css/") or path.endswith(".html/"):
+            self.request.sendall(bytearray("HTTP/1.1 404 Not found\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n" + """
+                                           <!DOCTYPE html>
+                                                <html>
+                                                <head>
+                                                    <title>404 Not found</title>
+                                                        <meta http-equiv="Content-Type"
+                                                        content="text/html;charset=utf-8"/>
+                                                </head>
+
+                                                <body>
+                                                    <div>
+                                                        <h1>404 Not found</h1>
+                                                    </div>
+                                                </body>
+                                                </html> """
+                                           ,'utf-8'))
+            return
+
+        readPath = path
 
         # If file does not exist respond with 404 Not Found
-        if not (Path(readPath).exists()):
-            self.request.sendall(bytearray("HTTP/1.1 404 Not Found\r\npage not found\r\n",'utf-8'))
+        if not (Path("./www" + readPath).exists()):
+            self.request.sendall(bytearray("HTTP/1.1 404 Not found\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n" + """
+                                           <!DOCTYPE html>
+                                                <html>
+                                                <head>
+                                                    <title>404 Not found</title>
+                                                        <meta http-equiv="Content-Type"
+                                                        content="text/html;charset=utf-8"/>
+                                                </head>
+
+                                                <body>
+                                                    <div>
+                                                        <h1>404 Not found</h1>
+                                                    </div>
+                                                </body>
+                                                </html> """
+                                           ,'utf-8'))
+            return
 
         # Re-direct if no path is given
         if path == "/":
-            response = "HTTP/1.1 301 Moved Permanently\r\nLocation: /index.html\r\n\r\n"
+            # response = "HTTP/1.1 301 Moved Permanently\r\nLocation: " + readPath + "index.html\r\n\r\n"
+            # self.request.sendall(bytearray(response,'utf-8'))
+            print("here1: " + readPath + "index.html")
+            content = self.readFile(readPath + "index.html")
+            departureHeaders = "HTTP/1.1 200 OK\r\nContent-Length: " + str(len(content)) + "\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
+            response = departureHeaders + content + "\r\n"
             self.request.sendall(bytearray(response,'utf-8'))
-
-            content = self.readFile("./www/index.html")
+        elif path == "/deep/":
+            content = self.readFile(readPath + "index.html")
             departureHeaders = "HTTP/1.1 200 OK\r\nContent-Length: " + str(len(content)) + "\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
             response = departureHeaders + content + "\r\n"
             self.request.sendall(bytearray(response,'utf-8'))
         else:
-            content = self.readFile(readPath[:-1])
+            print("here: " + readPath)
+            if readPath.endswith("/"):
+                readPath += "index.html"
+            content = self.readFile(readPath)
             departureHeaders = "HTTP/1.1 200 OK\r\nContent-Length: " + str(len(content)) + "\r\n"
-            if readPath.endswith(".html/"):
+            if readPath.endswith(".html"):
                 departureHeaders += "Content-Type: text/html\r\n"
-            elif readPath.endswith(".css/"):
+            elif readPath.endswith(".css"):
                 departureHeaders += "Content-Type: text/css\r\n"
             else:
-                self.request.sendall(bytearray("HTTP/1.1 404 Not Found\r\npage not found\r\n",'utf-8'))
+                self.request.sendall(bytearray("HTTP/1.1 404 Not found\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n" + """
+                                           <!DOCTYPE html>
+                                                <html>
+                                                <head>
+                                                    <title>404 Not found</title>
+                                                        <meta http-equiv="Content-Type"
+                                                        content="text/html;charset=utf-8"/>
+                                                </head>
+
+                                                <body>
+                                                    <div>
+                                                        <h1>404 Not found</h1>
+                                                    </div>
+                                                </body>
+                                                </html> """
+                                           ,'utf-8'))
+                return
             departureHeaders += "Connection: close\r\n\r\n"
-            response = departureHeaders + content + "\r\n"
+            response = departureHeaders + content
             self.request.sendall(bytearray(response,'utf-8'))
 
     def readFile(self, filename):
-        file = open(filename, "r")
+        file = open("./www" + filename, "r")
         content = file.read()
         file.close()
         return content
